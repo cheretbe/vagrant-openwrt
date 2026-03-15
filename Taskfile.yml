@@ -1,0 +1,115 @@
+version: '3'
+
+vars:
+  OPENWRT_VERSIONS:
+    sh: |
+      echo "{" \
+        "\"v24\": \"${OPENWRT_VERSION_24:-$(curl -s "https://api.github.com/repos/openwrt/openwrt/releases" | jq -r '[.[] | select(.tag_name | startswith("v24."))] | first | .tag_name | ltrimstr("v")')}\"", \
+        "\"v25\": \"${OPENWRT_VERSION_25:-$(curl -s "https://api.github.com/repos/openwrt/openwrt/releases" | jq -r '[.[] | select(.tag_name | startswith("v25."))] | first | .tag_name | ltrimstr("v")')}\"" \
+      "}"
+  OPENWRT_VERSIONS_JSON:
+    ref: "fromJson .OPENWRT_VERSIONS"
+  OPENWRT_VERSION_24:
+    ref: .OPENWRT_VERSIONS_JSON.v24
+  OPENWRT_VERSION_25:
+    ref: .OPENWRT_VERSIONS_JSON.v25
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+      - echo "Examples:"
+      - echo "  OPENWRT_VERSION_24=24.10.1 task openwrt-24"
+      - echo "  OPENWRT_VERSION_25=25.12.0 task openwrt-25"
+    silent: true
+
+  build-box:
+    internal: true
+    vars:
+      BUILD_DIR: build
+      OUTPUT_DIR: output
+      BOX_FILE_NAME: output/openwrt-{{.OPENWRT_BRANCH}}_{{.OPENWRT_VERSION}}.box
+      DESCRIPTION_FILE: output/openwrt-{{.OPENWRT_BRANCH}}_{{.OPENWRT_VERSION}}.md
+      BOX_NAME: openwrt-{{.OPENWRT_VERSION}}
+      TIMESTAMP:
+        sh: date +%s
+      VM_NAME: openwrt-{{.OPENWRT_VERSION}}-{{.TIMESTAMP}}
+      IMAGE_URL: https://downloads.openwrt.org/releases/{{.OPENWRT_VERSION}}/targets/x86/64/openwrt-{{.OPENWRT_VERSION}}-x86-64-generic-ext4-combined.img.gz
+    cmds:
+      - echo "Building OpenWrt {{.OPENWRT_VERSION}} ({{.OPENWRT_BRANCH}})"
+      # Create build directories
+      - mkdir -p {{.BUILD_DIR}} {{.OUTPUT_DIR}}
+      # Fetch OpenWrt disk image
+      - echo "Fetching OpenWrt image..."
+      - wget -O "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img.gz" "{{.IMAGE_URL}}"
+      - gzip -f -d "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img.gz" || true
+      # Convert RAW disk image to VDI
+      - echo "Converting image to VDI..."
+      - VBoxManage convertfromraw --format VDI "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img" "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.vdi"
+      # Create VirtualBox VM and export to OVF
+      - echo "Creating VirtualBox VM..."
+      - VBoxManage createvm --name "{{.VM_NAME}}" --ostype "Linux_64" --register
+      - VBoxManage storagectl "{{.VM_NAME}}" --name SATA --add sata --controller IntelAHCI --portcount 1
+      - VBoxManage storageattach "{{.VM_NAME}}" --storagectl SATA --port 0 --device 0 --type hdd --medium "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.vdi"
+      - VBoxManage export "{{.VM_NAME}}" --output "{{.BUILD_DIR}}/{{.VM_NAME}}.ovf"
+      - VBoxManage unregistervm "{{.VM_NAME}}" --delete
+      # Build the box with Packer
+      - echo "Running packer init..."
+      - packer init build.pkr.hcl
+      - echo "Running packer build..."
+      - |
+        BUILD_DIR={{.BUILD_DIR}} \
+        BOX_NAME={{.BOX_NAME}} \
+        VM_NAME={{.VM_NAME}} \
+        VERSION={{.OPENWRT_VERSION}} \
+        OUTPUT_DIR={{.OUTPUT_DIR}} \
+        packer build \
+          -only=virtualbox-ovf.openwrt-virtualbox \
+          -on-error=cleanup -force build.pkr.hcl
+      # Rename packer output to final box name
+      - mv "{{.OUTPUT_DIR}}/{{.BOX_NAME}}-virtualbox-ovf.box" "{{.BOX_FILE_NAME}}"
+      # Write description file
+      - echo "Writing '{{.DESCRIPTION_FILE}}'"
+      - |
+        cat > {{.DESCRIPTION_FILE}} <<EOF
+        **Updated OpenWrt to version {{.OPENWRT_VERSION}}**<br>
+        https://github.com/cheretbe/vagrant-openwrt/blob/master/README.md
+        EOF
+
+  openwrt-24:
+    desc: Build OpenWrt v24 box
+    cmds:
+      - task: build-box
+        vars:
+          OPENWRT_BRANCH: "24"
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_24
+
+  openwrt-25:
+    desc: Build OpenWrt v25 box
+    cmds:
+      - task: build-box
+        vars:
+          OPENWRT_BRANCH: "25"
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_25
+
+  test:
+    desc: Register temporary vagrant boxes and run basic tests
+    cmds:
+      - echo "[TODO] Test steps go here"
+
+  cleanup:
+    desc: Clean up build artifacts and temporary files
+    cmds:
+      - rm -vrf build
+      - rm -vrf output
+
+  build:
+    desc: Build and test all OpenWrt boxes
+    cmds:
+      - task: cleanup
+      - task: openwrt-24
+      - task: openwrt-25
+      - task: test
