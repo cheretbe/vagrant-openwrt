@@ -1,26 +1,28 @@
-variable "box_name" {
-  type    = string
-  default = "${env("BOX_NAME")}"
+packer {
+  required_plugins {
+    virtualbox = {
+      source  = "github.com/hashicorp/virtualbox"
+      version = ">= 1.0.0"
+    }
+    vagrant = {
+      version = ">= 1.0.0"
+      source = "github.com/hashicorp/vagrant"
+    }
+    qemu = {
+      version = ">= 1.0.0"
+      source = "github.com/hashicorp/qemu"
+    }
+  }
 }
 
-variable "build_dir" {
+variable "image_name" {
   type    = string
-  default = "${env("BUILD_DIR")}"
+  default = "${env("IMAGE_NAME")}"
 }
 
-variable "output_dir" {
+variable "box_file_name" {
   type    = string
-  default = "${env("OUTPUT_DIR")}"
-}
-
-variable "version" {
-  type    = string
-  default = "${env("VERSION")}"
-}
-
-variable "vm_name" {
-  type    = string
-  default = "${env("VM_NAME")}"
+  default = "${env("BOX_FILE_NAME")}"
 }
 
 locals {
@@ -53,14 +55,13 @@ source "qemu" "openwrt-libvirt" {
   format           = "qcow2"
   headless         = true
   iso_checksum     = "none"
-  iso_url          = "file://${var.build_dir}/openwrt-${var.version}.img"
+  iso_url          = "${var.image_name}.img"
   memory           = 128
   net_device       = "virtio-net"
   shutdown_command = "poweroff"
   ssh_password     = "vagrant"
   ssh_username     = "root"
   ssh_wait_timeout = "300s"
-  vm_name          = "${var.box_name}-${local.timestamp}"
 }
 
 source "virtualbox-ovf" "openwrt-virtualbox" {
@@ -69,7 +70,7 @@ source "virtualbox-ovf" "openwrt-virtualbox" {
   guest_additions_mode = "disable"
   headless             = true
   shutdown_command     = "poweroff"
-  source_path          = "${var.build_dir}/${var.vm_name}.ovf"
+  source_path          = "${var.image_name}.ovf"
   ssh_password         = "vagrant"
   ssh_username         = "root"
   ssh_wait_timeout     = "300s"
@@ -81,7 +82,6 @@ source "virtualbox-ovf" "openwrt-virtualbox" {
     ["modifyvm", "{{ .Name }}", "--usb", "off"],
     ["modifyvm", "{{ .Name }}", "--usbxhci", "off"]
   ]
-  vm_name = "${var.box_name}-${local.timestamp}"
 }
 
 # a build block invokes sources and runs provisioning steps on them. The
@@ -105,7 +105,7 @@ build {
   }
 
   post-processor "vagrant" {
-    output               = "${var.output_dir}/${var.box_name}-${source.type}.box"
+    output               = "${var.box_file_name}"
     vagrantfile_template = "templates/vagrantfile.rb"
   }
 }

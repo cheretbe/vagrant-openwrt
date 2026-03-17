@@ -13,6 +13,8 @@ vars:
     ref: .OPENWRT_VERSIONS_JSON.v24
   OPENWRT_VERSION_25:
     ref: .OPENWRT_VERSIONS_JSON.v25
+  BUILD_DIR: build
+  OUTPUT_DIR: output
 
 tasks:
   default:
@@ -20,56 +22,57 @@ tasks:
     cmds:
       - task --list
       - echo "Examples:"
-      - echo "  OPENWRT_VERSION_24=24.10.1 task openwrt-24"
-      - echo "  OPENWRT_VERSION_25=25.12.0 task openwrt-25"
+      - echo "  OPENWRT_VERSION_24=24.10.1 task openwrt-24-virtualbox"
+      - echo "  OPENWRT_VERSION_25=25.12.0 task openwrt-25-libvirt"
     silent: true
 
-  build-box:
+  fetch-image:
     internal: true
     vars:
-      BUILD_DIR: build
-      OUTPUT_DIR: output
-      BOX_FILE_NAME: output/openwrt-{{.OPENWRT_BRANCH}}_{{.OPENWRT_VERSION}}.box
-      DESCRIPTION_FILE: output/openwrt-{{.OPENWRT_BRANCH}}_{{.OPENWRT_VERSION}}.md
-      BOX_NAME: openwrt-{{.OPENWRT_VERSION}}
       TIMESTAMP:
         sh: date +%s
       VM_NAME: openwrt-{{.OPENWRT_VERSION}}-{{.TIMESTAMP}}
-      IMAGE_URL: https://downloads.openwrt.org/releases/{{.OPENWRT_VERSION}}/targets/x86/64/openwrt-{{.OPENWRT_VERSION}}-x86-64-generic-ext4-combined.img.gz
+    status:
+      - test -f "{{.IMAGE_NAME}}.img" && test -f "{{.IMAGE_NAME}}.ovf"
     cmds:
-      - echo "Building OpenWrt {{.OPENWRT_VERSION}} ({{.OPENWRT_BRANCH}})"
-      # Create build directories
-      - mkdir -p {{.BUILD_DIR}} {{.OUTPUT_DIR}}
-      # Fetch OpenWrt disk image
-      - echo "Fetching OpenWrt image..."
-      - wget -O "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img.gz" "{{.IMAGE_URL}}"
-      - gzip -f -d "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img.gz" || true
-      # Convert RAW disk image to VDI
+      - mkdir -p {{.BUILD_DIR}}
+      - echo "Fetching and extracting OpenWrt {{.OPENWRT_VERSION}} image..."
+      - |
+        wget -O "{{.IMAGE_NAME}}.img.gz" \
+        "https://downloads.openwrt.org/releases/{{.OPENWRT_VERSION}}/targets/x86/64/openwrt-{{.OPENWRT_VERSION}}-x86-64-generic-ext4-combined.img.gz"
+      - gzip -f -d "{{.IMAGE_NAME}}.img.gz" || true
       - echo "Converting image to VDI..."
-      - VBoxManage convertfromraw --format VDI "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.img" "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.vdi"
-      # Create VirtualBox VM and export to OVF
+      - VBoxManage convertfromraw --format VDI "{{.IMAGE_NAME}}.img" "{{.IMAGE_NAME}}.vdi"
       - echo "Creating VirtualBox VM..."
       - VBoxManage createvm --name "{{.VM_NAME}}" --ostype "Linux_64" --register
       - VBoxManage storagectl "{{.VM_NAME}}" --name SATA --add sata --controller IntelAHCI --portcount 1
-      - VBoxManage storageattach "{{.VM_NAME}}" --storagectl SATA --port 0 --device 0 --type hdd --medium "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}.vdi"
-      - VBoxManage export "{{.VM_NAME}}" --output "{{.BUILD_DIR}}/{{.VM_NAME}}.ovf"
+      - VBoxManage storageattach "{{.VM_NAME}}" --storagectl SATA --port 0 --device 0 --type hdd --medium "{{.IMAGE_NAME}}.vdi"
+      - VBoxManage export "{{.VM_NAME}}" --output "{{.IMAGE_NAME}}.ovf"
       - VBoxManage unregistervm "{{.VM_NAME}}" --delete
-      # Build the box with Packer
-      - echo "Running packer init..."
+
+  build-box:
+    internal: true
+    deps:
+      - task: fetch-image
+        vars:
+          OPENWRT_VERSION: "{{.OPENWRT_VERSION}}"
+          IMAGE_NAME: "{{.IMAGE_NAME}}"
+    vars:
+      IMAGE_NAME: "{{.BUILD_DIR}}/openwrt-{{.OPENWRT_VERSION}}"
+      BOX_FILE_NAME: '{{.OUTPUT_DIR}}/openwrt-{{.OPENWRT_BRANCH}}_{{.PROVIDER}}_{{.OPENWRT_VERSION}}.box'
+      DESCRIPTION_FILE: '{{.OUTPUT_DIR}}/openwrt-{{.OPENWRT_BRANCH}}_{{.PROVIDER}}_{{.OPENWRT_VERSION}}.md'
+      PACKER_ONLY: '{{if eq .PROVIDER "virtualbox"}}virtualbox-ovf.openwrt-virtualbox{{else}}qemu.openwrt-libvirt{{end}}'
+    cmds:
+      - echo "Building OpenWrt {{.OPENWRT_BRANCH}} ({{.OPENWRT_VERSION}}) [{{.PROVIDER}}]"
       - packer init build.pkr.hcl
-      - echo "Running packer build..."
       - |
         BUILD_DIR={{.BUILD_DIR}} \
-        BOX_NAME={{.BOX_NAME}} \
-        VM_NAME={{.VM_NAME}} \
-        VERSION={{.OPENWRT_VERSION}} \
-        OUTPUT_DIR={{.OUTPUT_DIR}} \
+        BOX_FILE_NAME={{.BOX_FILE_NAME}} \
+        IMAGE_NAME={{.IMAGE_NAME}} \
         packer build \
-          -only=virtualbox-ovf.openwrt-virtualbox \
+          -only={{.PACKER_ONLY}} \
           -on-error=cleanup -force build.pkr.hcl
-      # Rename packer output to final box name
-      - mv "{{.OUTPUT_DIR}}/{{.BOX_NAME}}-virtualbox-ovf.box" "{{.BOX_FILE_NAME}}"
-      # Write description file
+
       - echo "Writing '{{.DESCRIPTION_FILE}}'"
       - |
         cat > {{.DESCRIPTION_FILE}} <<EOF
@@ -77,21 +80,47 @@ tasks:
         https://github.com/cheretbe/vagrant-openwrt/blob/master/README.md
         EOF
 
-  openwrt-24:
-    desc: Build OpenWrt v24 box
+  openwrt-24-virtualbox:
+    desc: Build OpenWrt v24 VirtualBox box
     cmds:
       - task: build-box
         vars:
           OPENWRT_BRANCH: "24"
+          PROVIDER: virtualbox
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_24
 
-  openwrt-25:
-    desc: Build OpenWrt v25 box
+  openwrt-24-libvirt:
+    desc: Build OpenWrt v24 libvirt box
+    cmds:
+      - sudo -n modprobe kvm_intel
+      - defer: sudo -n rmmod kvm_intel kvm
+      - task: build-box
+        vars:
+          OPENWRT_BRANCH: "24"
+          PROVIDER: libvirt
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_24
+
+  openwrt-25-virtualbox:
+    desc: Build OpenWrt v25 VirtualBox box
     cmds:
       - task: build-box
         vars:
           OPENWRT_BRANCH: "25"
+          PROVIDER: virtualbox
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_25
+
+  openwrt-25-libvirt:
+    desc: Build OpenWrt v25 libvirt box
+    cmds:
+      - sudo -n modprobe kvm_intel
+      - defer: sudo -n rmmod kvm_intel kvm
+      - task: build-box
+        vars:
+          OPENWRT_BRANCH: "25"
+          PROVIDER: libvirt
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_25
 
@@ -110,6 +139,8 @@ tasks:
     desc: Build and test all OpenWrt boxes
     cmds:
       - task: cleanup
-      - task: openwrt-24
-      - task: openwrt-25
+      - task: openwrt-24-virtualbox
+      - task: openwrt-24-libvirt
+      - task: openwrt-25-virtualbox
+      - task: openwrt-25-libvirt
       - task: test
