@@ -80,49 +80,73 @@ tasks:
         https://github.com/cheretbe/vagrant-openwrt/blob/master/README.md
         EOF
 
-  openwrt-24-virtualbox:
-    desc: Build OpenWrt v24 VirtualBox box
+  build-virtualbox:
+    internal: true
     cmds:
       - task: build-box
         vars:
-          OPENWRT_BRANCH: "24"
+          OPENWRT_BRANCH: "{{.OPENWRT_BRANCH}}"
           PROVIDER: virtualbox
+          OPENWRT_VERSION: "{{.OPENWRT_VERSION}}"
+
+  build-libvirt:
+    internal: true
+    cmds:
+      - sudo -n modprobe kvm_intel
+      - defer: sudo -n rmmod kvm_intel kvm
+      - task: build-box
+        vars:
+          OPENWRT_BRANCH: "{{.OPENWRT_BRANCH}}"
+          PROVIDER: libvirt
+          OPENWRT_VERSION: "{{.OPENWRT_VERSION}}"
+
+  openwrt-24-virtualbox:
+    desc: Build OpenWrt v24 VirtualBox box
+    cmds:
+      - task: build-virtualbox
+        vars:
+          OPENWRT_BRANCH: "24"
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_24
 
   openwrt-24-libvirt:
     desc: Build OpenWrt v24 libvirt box
     cmds:
-      - sudo -n modprobe kvm_intel
-      - defer: sudo -n rmmod kvm_intel kvm
-      - task: build-box
+      - task: build-libvirt
         vars:
           OPENWRT_BRANCH: "24"
-          PROVIDER: libvirt
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_24
+
+  openwrt-24:
+    desc: Build all OpenWrt v24 boxes
+    cmds:
+      - task: openwrt-24-virtualbox
+      - task: openwrt-24-libvirt
 
   openwrt-25-virtualbox:
     desc: Build OpenWrt v25 VirtualBox box
     cmds:
-      - task: build-box
+      - task: build-virtualbox
         vars:
           OPENWRT_BRANCH: "25"
-          PROVIDER: virtualbox
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_25
 
   openwrt-25-libvirt:
     desc: Build OpenWrt v25 libvirt box
     cmds:
-      - sudo -n modprobe kvm_intel
-      - defer: sudo -n rmmod kvm_intel kvm
-      - task: build-box
+      - task: build-libvirt
         vars:
           OPENWRT_BRANCH: "25"
-          PROVIDER: libvirt
           OPENWRT_VERSION:
             ref: .OPENWRT_VERSION_25
+
+  openwrt-25:
+    desc: Build all OpenWrt v25 boxes
+    cmds:
+      - task: openwrt-25-virtualbox
+      - task: openwrt-25-libvirt
 
   test:
     desc: Register temporary vagrant boxes and run basic tests
@@ -139,8 +163,6 @@ tasks:
     desc: Build and test all OpenWrt boxes
     cmds:
       - task: cleanup
-      - task: openwrt-24-virtualbox
-      - task: openwrt-24-libvirt
-      - task: openwrt-25-virtualbox
-      - task: openwrt-25-libvirt
+      - task: openwrt-24
+      - task: openwrt-25
       - task: test
