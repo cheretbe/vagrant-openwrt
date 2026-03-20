@@ -93,7 +93,7 @@ tasks:
     internal: true
     cmds:
       - sudo -n modprobe kvm_intel
-      - defer: sudo -n rmmod kvm_intel kvm
+      - defer: sudo -n modprobe -r kvm_intel kvm
       - task: build-box
         vars:
           OPENWRT_BRANCH: "{{.OPENWRT_BRANCH}}"
@@ -148,10 +148,45 @@ tasks:
       - task: openwrt-25-virtualbox
       - task: openwrt-25-libvirt
 
-  test:
-    desc: Register temporary vagrant boxes and run basic tests
+  test-boxes:
+    internal: true
     cmds:
-      - echo "[TODO] Test steps go here"
+      - echo "Testing OpenWrt v{{.OPENWRT_BRANCH}} ({{.OPENWRT_VERSION}})..."
+      - vagrant box add --force local_test_openwrt_v{{.OPENWRT_BRANCH}}_virtualbox {{.OUTPUT_DIR}}/openwrt-{{.OPENWRT_BRANCH}}_virtualbox_{{.OPENWRT_VERSION}}.box
+      - vagrant box add --force local_test_openwrt_v{{.OPENWRT_BRANCH}}_libvirt {{.OUTPUT_DIR}}/openwrt-{{.OPENWRT_BRANCH}}_libvirt_{{.OPENWRT_VERSION}}.box
+      # - cd tests/vagrant-local && TEST_OPENWRT_VERSION={{.OPENWRT_BRANCH}} vagrant status
+      - cd tests/vagrant-local && TEST_OPENWRT_VERSION={{.OPENWRT_BRANCH}} vagrant up "openwrt_v{{.OPENWRT_BRANCH}}_virtualbox"
+      - cd tests/vagrant-local && TEST_OPENWRT_VERSION={{.OPENWRT_BRANCH}} vagrant halt
+      - sudo -n modprobe kvm_intel
+      - defer: sudo -n modprobe -r kvm_intel kvm
+      - cd tests/vagrant-local && TEST_OPENWRT_VERSION={{.OPENWRT_BRANCH}} vagrant up "openwrt_v{{.OPENWRT_BRANCH}}_libvirt"
+      - cd tests/vagrant-local && TEST_OPENWRT_VERSION={{.OPENWRT_BRANCH}} vagrant destroy -f
+      - vagrant box remove -f local_test_openwrt_v{{.OPENWRT_BRANCH}}_virtualbox
+      - vagrant box remove -f local_test_openwrt_v{{.OPENWRT_BRANCH}}_libvirt
+
+  test-24:
+    desc: Test OpenWrt v24 boxes
+    cmds:
+      - task: test-boxes
+        vars:
+          OPENWRT_BRANCH: "24"
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_24
+
+  test-25:
+    desc: Test OpenWrt v25 boxes
+    cmds:
+      - task: test-boxes
+        vars:
+          OPENWRT_BRANCH: "25"
+          OPENWRT_VERSION:
+            ref: .OPENWRT_VERSION_25
+
+  test:
+    desc: Run tests for all OpenWrt versions
+    cmds:
+      - task: test-24
+      - task: test-25
 
   cleanup:
     desc: Clean up build artifacts and temporary files

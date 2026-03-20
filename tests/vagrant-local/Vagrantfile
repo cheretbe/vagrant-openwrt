@@ -1,0 +1,18 @@
+version = ENV["TEST_OPENWRT_VERSION"] || "25"
+
+Vagrant.configure("2") do |config|
+  config.vm.define "openwrt_v#{version}_virtualbox" do |vb|
+    vb.vm.box = "local_test_openwrt_v#{version}_virtualbox"
+    vb.vm.provider "virtualbox"
+    vb.vm.synced_folder ".", "/vagrant", disabled: true
+    vb.vm.provision "shell", path: "provision.sh"
+  end
+
+
+  config.vm.define "openwrt_v#{version}_libvirt" do |lv|
+    lv.vm.box = "local_test_openwrt_v#{version}_libvirt"
+    lv.vm.provider "libvirt"
+    lv.vm.synced_folder ".", "/vagrant", disabled: true
+    lv.vm.provision "shell", path: "provision.sh"
+  end
+end
