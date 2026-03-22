@@ -194,6 +194,31 @@ tasks:
       - rm -vrf build
       - rm -vrf output
 
+  prepare-venv:
+    desc: Prepare virtual environment for publishing
+    internal: true
+    silent: true
+    preconditions:
+      - sh: 'command -v hcp'
+        msg: "hcp binary not found. Use 'sudo apt install hcp' to install it."
+    status:
+      - test -f  ~/.cache/venv/vagrant-openwrt/bin/wheel
+    cmds:
+      - python3 -m venv ~/.cache/venv/vagrant-openwrt
+      - |
+        . ~/.cache/venv/vagrant-openwrt/bin/activate || :
+        pip install --upgrade pip;
+        pip install wheel;
+        pip install requests questionary;
+
+  publish:
+    desc: Publish a previously built box
+    deps:
+      - prepare-venv
+    cmds:
+      - wget https://raw.githubusercontent.com/cheretbe/notes/refs/heads/master/scripts/vagrant/box_publish.py -O build/box_publish.py
+      - ~/.cache/venv/vagrant-openwrt/bin/python3 build/box_publish.py --hcp-creds-prompt --dry-run
+
   build:
     desc: Build and test all OpenWrt boxes
     cmds:
