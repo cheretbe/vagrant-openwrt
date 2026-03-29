@@ -217,7 +217,7 @@ tasks:
       - prepare-venv
     cmds:
       - wget https://raw.githubusercontent.com/cheretbe/notes/refs/heads/master/scripts/vagrant/box_publish.py -O build/box_publish.py
-      - ~/.cache/venv/vagrant-openwrt/bin/python3 build/box_publish.py --hcp-creds-prompt --dry-run
+      - ~/.cache/venv/vagrant-openwrt/bin/python3 build/box_publish.py
 
   build:
     desc: Build and test all OpenWrt boxes
