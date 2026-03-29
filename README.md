@@ -1,5 +1,5 @@
-[![](https://badgen.net/https/cheretbe.npkn.net/vagrant-openwrt-version/openwrt-24)](https://app.vagrantup.com/cheretbe/boxes/openwrt-24)
-[![](https://badgen.net/https/cheretbe.npkn.net/vagrant-openwrt-version/openwrt-25)](https://app.vagrantup.com/cheretbe/boxes/openwrt-25)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fcheretbe.npkn.net%2Fvagrant-openwrt-version-shields%2Fopenwrt-24)](https://app.vagrantup.com/cheretbe/boxes/openwrt-24)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fcheretbe.npkn.net%2Fvagrant-openwrt-version-shields%2Fopenwrt-25)](https://app.vagrantup.com/cheretbe/boxes/openwrt-25)
 
 # Packer template for building OpenWRT vagrant boxes
 
