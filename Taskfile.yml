@@ -77,7 +77,7 @@ tasks:
       - |
         cat > {{.DESCRIPTION_FILE}} <<EOF
         **Updated OpenWrt to version {{.OPENWRT_VERSION}}**<br>
-        https://github.com/cheretbe/vagrant-openwrt/blob/master/README.md
+        https://github.com/cheretbe/vagrant-openwrt/blob/main/README.md
         EOF
 
   build-virtualbox:
