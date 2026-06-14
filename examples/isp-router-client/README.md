@@ -45,3 +45,6 @@ vagrant up
   router via the LAN interface, bypassing the VirtualBox NAT.
 * The router's LuCI web interface is reachable from the host at
   http://localhost:8000 (host port 8000 -> guest port 80).
+* DNS: the router uses `1.1.1.1` as its upstream resolver (set on the WAN
+  interface). The client receives the router (`192.168.120.1`) as its DNS
+  server over DHCP, and the router's dnsmasq forwards queries upstream.
