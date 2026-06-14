@@ -1,0 +1,61 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Topology:
+#
+#  [Internet]
+#      |
+#  [ isp ] eth1: 100.78.213.10/24  (vagrant-isp)
+#      |
+#  [ router ] eth1 WAN: 100.78.213.11/24 (vagrant-isp)
+#             eth2 LAN: 192.168.120.1/24   (vagrant-lan)
+#      |
+#  [ client ] eth1: DHCP from router  (vagrant-lan)
+
+Vagrant.configure("2") do |config|
+
+  config.vm.define :isp do |isp|
+    isp.vm.box = "bento/debian-12"
+    isp.vm.hostname = "isp"
+    isp.vm.provider "virtualbox" do |vb|
+      vb.customize ["modifyvm", :id, "--uartmode1", "disconnected"]
+    end
+    isp.vm.network "private_network", ip: "100.78.213.10",
+      virtualbox__intnet: "vagrant-isp"
+
+    isp.vm.provision "shell", name: "Provision ISP",
+      path: "provision/isp.sh", keep_color: true
+  end
+
+  config.vm.define :router do |router|
+    router.vm.box = "cheretbe/openwrt-25"
+    router.vm.hostname = "router"
+    router.vm.provider "virtualbox" do |vb|
+      vb.customize ["modifyvm", :id, "--uartmode1", "disconnected"]
+    end
+    router.vm.network "forwarded_port", guest: 80, host: 8000
+    # eth1: WAN - connects to ISP network
+    router.vm.network "private_network", virtualbox__intnet: "vagrant-isp",
+      auto_config: false
+    # eth2: LAN - connects to client network
+    router.vm.network "private_network", virtualbox__intnet: "vagrant-lan",
+      auto_config: false
+
+    router.vm.provision "shell", name: "Provision router",
+      path: "provision/router.sh", keep_color: true
+  end
+
+  config.vm.define :client do |client|
+    client.vm.box = "bento/debian-12"
+    client.vm.hostname = "client"
+    client.vm.provider "virtualbox" do |vb|
+      vb.customize ["modifyvm", :id, "--uartmode1", "disconnected"]
+    end
+    client.vm.network "private_network", virtualbox__intnet: "vagrant-lan",
+      auto_config: false
+
+    client.vm.provision "shell", name: "Provision client",
+      path: "provision/client.sh", keep_color: true
+  end
+
+end

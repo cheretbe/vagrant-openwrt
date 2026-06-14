@@ -15,3 +15,7 @@
 
 * OpenWRT v25: https://app.vagrantup.com/cheretbe/boxes/openwrt-25
 * OpenWRT v24: https://app.vagrantup.com/cheretbe/boxes/openwrt-24
+
+#### Usage example
+
+* [examples/isp-router-client](examples/isp-router-client) — multi-VM setup with an OpenWRT router routing between an upstream ISP gateway (WAN) and a LAN client
