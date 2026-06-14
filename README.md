@@ -18,4 +18,4 @@
 
 #### Usage example
 
-* [examples/isp-router-client](examples/isp-router-client) — multi-VM setup with an OpenWRT router routing between an upstream ISP gateway (WAN) and a LAN client
+* [examples/isp-router-client](examples/isp-router-client) — multi-VM setup with an OpenWRT 25 router routing between an upstream ISP gateway (WAN) and a LAN client
